@@ -40,8 +40,8 @@ LEDBlyat.bin \
 all: LEDBlyat.elf secondary-outputs
 
 # Tool invocations
-LEDBlyat.elf: $(OBJS) $(USER_OBJS) C:\Users\Marco\STM32CubeIDE\workspace_1.2.0\LEDBlyat\STM32F446RETX_FLASH.ld
-	arm-none-eabi-gcc -o "LEDBlyat.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\Marco\STM32CubeIDE\workspace_1.2.0\LEDBlyat\STM32F446RETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="LEDBlyat.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+LEDBlyat.elf: $(OBJS) $(USER_OBJS) C:\Users\becke\Documents\GitHub\LED-SK9822-STM32\STM32F446RETX_FLASH.ld
+	arm-none-eabi-gcc -o "LEDBlyat.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\becke\Documents\GitHub\LED-SK9822-STM32\STM32F446RETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="LEDBlyat.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

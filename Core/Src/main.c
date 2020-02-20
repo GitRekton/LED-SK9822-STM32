@@ -21,10 +21,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
-#include "ledFunLib.h"
-
-#include "Color.h"
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -45,6 +41,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+
 SPI_HandleTypeDef hspi2;
 
 TIM_HandleTypeDef htim1;
@@ -60,20 +58,19 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_SPI2_Init(void);
+static void MX_ADC1_Init(void);
 static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
 
 
 
 
-static hsv   rgb2hsv(rgb in);
-static rgb   hsv2rgb(hsv in);
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 uint8_t stateLED = 0;
+uint8_t	increment = 0;
 uint8_t lastStateLED = 0;
 
 
@@ -89,15 +86,139 @@ typedef struct {
 
 
 
-
-
-struct
+typedef struct
 {
 	  uint32_t startFrame;
 	  ledFrame ledarray[9];
 	  uint32_t endFrame;
 
 } Frame;
+
+
+Frame frame;
+
+typedef struct {
+    double r;       // a fraction between 0 and 1
+    double g;       // a fraction between 0 and 1
+    double b;       // a fraction between 0 and 1
+} rgb;
+
+typedef struct {
+    double h;       // angle in degrees
+    double s;       // a fraction between 0 and 1
+    double v;       // a fraction between 0 and 1
+} hsv;
+
+
+static hsv   rgb2hsv(rgb in);
+static rgb   hsv2rgb(hsv in);
+
+hsv rgb2hsv(rgb in)
+{
+    hsv         out;
+    double      min, max, delta;
+
+    min = in.r < in.g ? in.r : in.g;
+    min = min  < in.b ? min  : in.b;
+
+    max = in.r > in.g ? in.r : in.g;
+    max = max  > in.b ? max  : in.b;
+
+    out.v = max;                                // v
+    delta = max - min;
+    if (delta < 0.00001)
+    {
+        out.s = 0;
+        out.h = 0; // undefined, maybe nan?
+        return out;
+    }
+    if( max > 0.0 ) { // NOTE: if Max is == 0, this divide would cause a crash
+        out.s = (delta / max);                  // s
+    } else {
+        // if max is 0, then r = g = b = 0
+        // s = 0, h is undefined
+        out.s = 0.0;
+        //out.h = NAN;                            // its now undefined
+        return out;
+    }
+    if( in.r >= max )                           // > is bogus, just keeps compilor happy
+        out.h = ( in.g - in.b ) / delta;        // between yellow & magenta
+    else
+    if( in.g >= max )
+        out.h = 2.0 + ( in.b - in.r ) / delta;  // between cyan & yellow
+    else
+        out.h = 4.0 + ( in.r - in.g ) / delta;  // between magenta & cyan
+
+    out.h *= 60.0;                              // degrees
+
+    if( out.h < 0.0 )
+        out.h += 360.0;
+
+    return out;
+}
+
+
+rgb hsv2rgb(hsv in)
+{
+    double      hh, p, q, t, ff;
+    long        i;
+    rgb         out;
+
+    if(in.s <= 0.0) {       // < is bogus, just shuts up warnings
+        out.r = in.v;
+        out.g = in.v;
+        out.b = in.v;
+        return out;
+    }
+    hh = in.h;
+    if(hh >= 360.0) hh = 0.0;
+    hh /= 60.0;
+    i = (long)hh;
+    ff = hh - i;
+    p = in.v * (1.0 - in.s);
+    q = in.v * (1.0 - (in.s * ff));
+    t = in.v * (1.0 - (in.s * (1.0 - ff)));
+
+    switch(i) {
+    case 0:
+        out.r = in.v;
+        out.g = t;
+        out.b = p;
+        break;
+    case 1:
+        out.r = q;
+        out.g = in.v;
+        out.b = p;
+        break;
+    case 2:
+        out.r = p;
+        out.g = in.v;
+        out.b = t;
+        break;
+
+    case 3:
+        out.r = p;
+        out.g = q;
+        out.b = in.v;
+        break;
+    case 4:
+        out.r = t;
+        out.g = p;
+        out.b = in.v;
+        break;
+    case 5:
+    default:
+        out.r = in.v;
+        out.g = p;
+        out.b = q;
+        break;
+    }
+    return out;
+}
+
+hsv hsv_farbe;
+
+
 /* USER CODE END 0 */
 
 /**
@@ -131,34 +252,32 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   MX_SPI2_Init();
+  MX_ADC1_Init();
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
+  HAL_TIM_Base_Start_IT(&htim1);
 
-;
 
 
-  Frame.startFrame	=	0;
-  Frame.endFrame	=	0xFFFFFFFF;
 
-  for(	int i =0; i<9; i++){
-	  Frame.ledarray[i].blue	=	0;
-	  Frame.ledarray[i].green	=	0;
-	  Frame.ledarray[i].red		=	0;
-  }
+  frame.startFrame	=	0;
+  frame.endFrame	=	0xFFFFFFFF;
 
   for(	int i =0; i<9; i++){
+	  frame.ledarray[i].blue	=	0;
+	  frame.ledarray[i].green	=	0;
+	  frame.ledarray[i].red		=	255;
 
-//		  uint8_t r+= 3;
-//		  uint8_t g = 3;
-//		  int b =
-	  Frame.ledarray[i].staticStart	=	0b111;
-	  Frame.ledarray[i].globalBrightness	=	0b11111;
-
-	  Frame.ledarray[i].blue	=	20 * (i + 1);
-	  Frame.ledarray[i].green	=	0;
-	  Frame.ledarray[i].red		=	255 - ( i * 20);
+	  frame.ledarray[i].staticStart	=	0b111;
+	  frame.ledarray[i].globalBrightness	=	0b11111;
 
   }
+
+
+
+
+
+
 
 
   /* USER CODE END 2 */
@@ -175,9 +294,8 @@ int main(void)
 
 
 
-
-	  if (HAL_SPI_STATE_READY){
-		  HAL_SPI_Transmit(&hspi2, &Frame, sizeof(Frame), 100);
+	  if (HAL_SPI_GetState(&hspi2) == HAL_SPI_STATE_READY){
+		  HAL_SPI_Transmit(&hspi2, &frame , sizeof(Frame), 100);
 	  }
     /* USER CODE END WHILE */
 
@@ -234,6 +352,56 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.ScanConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time. 
+  */
+  sConfig.Channel = ADC_CHANNEL_0;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
@@ -295,7 +463,7 @@ static void MX_TIM1_Init(void)
   htim1.Instance = TIM1;
   htim1.Init.Prescaler = 9000-1;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 20 - 1;
+  htim1.Init.Period = 200 - 1;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -391,15 +559,35 @@ static void MX_GPIO_Init(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
 
-			stateLED ^= 1;
 
-		  for(	int i =0; i<9; i++){
+		increment++;
 
-			  Frame.ledarray[i].blue	=	255 * stateLED;
-			  Frame.ledarray[i].green	=	0;
-			  Frame.ledarray[i].red		=	0;
+
+		hsv_farbe.h = increment * 1.41;
+		hsv_farbe.s = 1;
+		hsv_farbe.v = 1;
+
+
+		int r = hsv2rgb(hsv_farbe).b * 255;
+		int g = hsv2rgb(hsv_farbe).g * 255;
+		int b = hsv2rgb(hsv_farbe).r * 255;
+
+		stateLED ^= 1;
+
+		HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+
+		for(int i =0; i<9; i++){
+
+			  frame.ledarray[i].blue	=	r;
+			  frame.ledarray[i].green	=	g;
+			  frame.ledarray[i].red		=   b;
 
 		  }
+
+
+
+
+
 
 
 
